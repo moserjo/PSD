@@ -1,0 +1,8 @@
+# Python compiled files
+__pycache__/
+*.pyc
+
+# VSCode settings
+.vscode/
+
+.ipynb_checkpoints/
