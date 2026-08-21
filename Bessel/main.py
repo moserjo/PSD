@@ -13,7 +13,7 @@ from training import train
 torch.set_default_dtype(torch.float64)
 
 
-n = 2.
+n = 1
 N = 100
 
 num_tasks = 2
@@ -34,10 +34,12 @@ train_y = torch.cat([train_y_0, train_y_1], dim = 0)
 test_x = torch.cat([plot_x, plot_x], dim = 0)
 test_i = torch.cat([torch.zeros_like(plot_x), torch.ones_like(plot_x)], dim = 0)
 full_test_x = torch.stack([test_x, test_i], dim = -1)
-test_y = torch.cat([scipy.special.jv(n, plot_x), torch.zeros_like(plot_x)], dim = 0)
-
+test_y_0 = scipy.special.jv(n, plot_x)
+test_y_1 = torch.zeros_like(plot_x)
+test_y = torch.cat([test_y_0, test_y_0], dim = 0)
+print(train_y, "trainy")
 #Vanilla just dummy calculation to access kernel similar to subsequent ones
-likelihood_vanilla = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.Interval(1e-10, 1e-6 ))                                                                                                                       
+likelihood_vanilla = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.Interval(1e-8, 1e-6 ))                                                                                                                       
 model_vanilla = van.PCGP_Model(torch.stack([train_x_1, torch.zeros_like(train_x_1)], dim = -1), train_y[2:], likelihood_vanilla, num_tasks = 1, priors=None)
 model_vanilla.eval()
 likelihood_vanilla.eval()
@@ -63,7 +65,7 @@ parameters = {  "n": [n, False, False],
                 "amplitude":[1., True, gpytorch.constraints.Positive()], 
                 "lengthscale": [1., True, gpytorch.constraints.Positive()],}
 noise_tensor = 1e-6*torch.ones_like(train_y)
-likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(noise_tensor)                                                                                                                       
+likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(noise_tensor)#noise_constraint=gpytorch.constraints.Interval(1e-10, 1e-6))                                                                                                                       
 model = ex.PCGP_Model(full_train_x, train_y, likelihood, parameters, num_tasks = num_tasks, priors=None)
 
 model.eval()
@@ -98,7 +100,7 @@ print("prior saved")
 #Posterior
 model.train()
 likelihood.train()
-training_iter = 50
+training_iter = 500
 with gpytorch.settings.max_cholesky_size(float('inf')):
     train_output = train(model,
                          likelihood,
@@ -126,11 +128,19 @@ for i in range(num_tasks):
         c0 = j * (N + gap)
         log_K_gap[r0:r0+N, c0:c0+N] = log_K[i*N:(i+1)*N, j*N:(j+1)*N]
 data_path = os.path.join(os.path.dirname(__file__), "results", "posterior.npz")
+print(train_y_0)
 np.savez_compressed(data_path,
                         K = log_K_gap.numpy(),
                         mean = torch.stack([mean[test_i==0], mean[test_i==1]], dim = -1).numpy(),
                         lower = torch.stack([lower[test_i==0], lower[test_i==1]], dim = -1).numpy(),
                         upper = torch.stack([upper[test_i==0], upper[test_i==1]], dim = -1).numpy(),
+                        train_x_0 = train_x_0.numpy(),
+                        train_y_0 = train_y_0.numpy(),
+                        train_x_1 = train_x_1.numpy(),
+                        train_y_1 = train_y_1.numpy(),
+                        test_y_0 = test_y_0.numpy(),
+                    
+                        test_y_1 = test_y_1.numpy(),
                         plot_x = plot_x.numpy())
 print("posterior saved")
 
